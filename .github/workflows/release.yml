@@ -22,7 +22,7 @@ jobs:
   model:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
@@ -31,7 +31,7 @@ jobs:
         run: |
           mix deps.get
           mix rnnoise.gen_blob --output weights_blob.bin
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: weights_blob.bin
 
@@ -43,7 +43,7 @@ jobs:
     env:
       MIX_ENV: prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
@@ -59,7 +59,7 @@ jobs:
           export ELIXIR_MAKE_CACHE_DIR="$(pwd)/cache"
           mkdir -p "$ELIXIR_MAKE_CACHE_DIR"
           mix elixir_make.precompile --ignore-unavailable
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: cache/*.tar.gz
 
@@ -70,7 +70,7 @@ jobs:
     env:
       MIX_ENV: prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ env.OTP_VERSION }}
@@ -81,7 +81,7 @@ jobs:
           export ELIXIR_MAKE_CACHE_DIR="$(pwd)/cache"
           mkdir -p "$ELIXIR_MAKE_CACHE_DIR"
           mix elixir_make.precompile --ignore-unavailable
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: cache/*.tar.gz
 
@@ -91,7 +91,7 @@ jobs:
     needs: [linux, macos]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
