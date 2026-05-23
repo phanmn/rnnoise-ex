@@ -48,16 +48,15 @@ defmodule Rnnoise.MixProject do
     ]
   end
 
-  # Precompilation targets. macOS arches are built natively (one runner each);
-  # Linux builds x86_64 natively plus aarch64 via a cross compiler.
+  # Precompilation targets. cc_precompiler's default linux set already includes
+  # x86_64-linux-gnu and aarch64-linux-gnu (the latter via aarch64-linux-gnu-gcc,
+  # installed in CI); macOS defaults cover x86_64 + arm64. Listing a default
+  # target again would duplicate it in checksum.exs, so rely on the defaults.
   defp cc_precompiler do
     [
       cleanup: "clean",
       compilers: %{
-        {:unix, :linux} => %{
-          :include_default_ones => true,
-          "aarch64-linux-gnu" => {"aarch64-linux-gnu-gcc", "aarch64-linux-gnu-g++"}
-        },
+        {:unix, :linux} => %{include_default_ones: true},
         {:unix, :darwin} => %{include_default_ones: true}
       }
     ]
