@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            otp: "27.2"
+            elixir: "1.18.4"
+          - os: macos-14
+            otp: "27.2"
+            elixir: "1.18.4"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+
+      - name: Cache deps and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      # Generate the model blob so :needs_model tests run (cached by model hash).
+      - name: Cache model blob
+        uses: actions/cache@v4
+        with:
+          path: priv/weights_blob.bin
+          key: rnnoise-model-0a8755f8
+
+      - name: Generate model blob if missing
+        shell: bash
+        run: |
+          if [ ! -f priv/weights_blob.bin ]; then
+            mix rnnoise.gen_blob --output priv/weights_blob.bin
+          fi
+
+      - name: Run tests
+        run: mix test

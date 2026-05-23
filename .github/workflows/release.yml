@@ -1,0 +1,116 @@
+name: release
+
+# On a pushed tag (e.g. v0.1.0): build precompiled NIFs + the model blob, attach
+# them to the GitHub release, then generate checksum.exs and fold it into the tag
+# so git-based installs (`{:rnnoise, github: ..., tag: "v0.1.0"}`) get precompiled
+# NIFs without a C compiler. No Hex publish required.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  OTP_VERSION: "27.2"
+  ELIXIR_VERSION: "1.18.4"
+
+jobs:
+  # The 14 MB weights blob, generated from the official xiph model.
+  model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+      - name: Generate weights blob
+        run: |
+          mix deps.get
+          mix rnnoise.gen_blob --output weights_blob.bin
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: weights_blob.bin
+
+  linux:
+    # Pin to the oldest supported glibc so artifacts load on older distros too.
+    # (Verified in Docker: the NIF only needs GLIBC_2.17, but this is cheap
+    # insurance against future code pulling in newer symbols.)
+    runs-on: ubuntu-22.04
+    env:
+      MIX_ENV: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+      - name: Install cross compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc g++ \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Build precompiled NIFs (x86_64 + aarch64)
+        run: |
+          mix deps.get
+          export ELIXIR_MAKE_CACHE_DIR="$(pwd)/cache"
+          mkdir -p "$ELIXIR_MAKE_CACHE_DIR"
+          mix elixir_make.precompile --ignore-unavailable
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: cache/*.tar.gz
+
+  # A single Apple Silicon runner builds both macOS arches: arm64 natively and
+  # x86_64 via `-arch` cross-compilation (Apple's toolchain supports this).
+  macos:
+    runs-on: macos-14
+    env:
+      MIX_ENV: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+      - name: Build precompiled NIFs (arm64 + x86_64)
+        run: |
+          mix deps.get
+          export ELIXIR_MAKE_CACHE_DIR="$(pwd)/cache"
+          mkdir -p "$ELIXIR_MAKE_CACHE_DIR"
+          mix elixir_make.precompile --ignore-unavailable
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: cache/*.tar.gz
+
+  # Generate checksum.exs from the uploaded artifacts and fold it into the tag,
+  # so git-based installs verify and use the precompiled NIFs.
+  checksum:
+    needs: [linux, macos]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+      - name: Generate checksum.exs from the release artifacts
+        run: |
+          mix deps.get
+          mix elixir_make.checksum --all --ignore-unavailable
+          cat checksum.exs
+      - name: Commit checksum.exs and move the tag onto it
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f checksum.exs
+          git commit -m "chore: checksum.exs for ${TAG}"
+          git tag -f "${TAG}"
+          git push origin -f "refs/tags/${TAG}"

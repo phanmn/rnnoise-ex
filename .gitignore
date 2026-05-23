@@ -1,0 +1,27 @@
+# Mix / build
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/*.secret.exs
+.elixir_ls/
+.lexical/
+
+# Native build artifacts (the NIF is compiled per-machine into priv/)
+/priv/rnnoise_nif.so
+/priv/rnnoise_nif.dll
+*.o
+
+# The 14 MB model blob is downloaded/cached at runtime, never committed.
+/priv/weights_blob.bin
+
+# Precompilation: artifact cache + generated checksums. checksum.exs is created
+# at release time and force-committed onto the release tag by CI (git add -f),
+# so it stays out of the working tree / main branch.
+/cache/
+/checksum.exs
+
